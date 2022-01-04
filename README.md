@@ -24,7 +24,7 @@ I use this to keep a request in the background, until a new event comes.
 When the next event comes, the previous request gets dropped and cancelled (automatically).
 ```rust
 let search_changed = ev_stream!(search_text_box, search_changed, |target|);
-let fut = click_stream
+let fut = search_changed
   .fold(None::<RemoteHandle<()>>, |state, target| {
     fetch_data(target.text())
   });
