@@ -5,7 +5,7 @@ use std::cell::Cell;
 use std::pin::Pin;
 
 pub use futures_channel::mpsc;
-use glib::{object::Object, SignalHandlerId, WeakRef};
+pub use glib::{object::Object, SignalHandlerId, WeakRef};
 pub use paste;
 
 /// `Stream` of `T` created with the [ev_stream]
@@ -17,17 +17,15 @@ pub struct EvStream<T> {
 }
 
 impl<T> EvStream<T> {
-    // The provided function `connect_sender_fun` should connect a callback to a glib `Object`
-    // and send the arguments of the callback to the provided `UnboundedSender`.
     pub fn new(
-        connect_sender_fun: impl Fn(mpsc::UnboundedSender<T>) -> (WeakRef<Object>, SignalHandlerId),
+        object: WeakRef<Object>,
+        signal_id: SignalHandlerId,
+        receiver: mpsc::UnboundedReceiver<T>
     ) -> Self {
-        let (s, r) = mpsc::unbounded();
-        let (object, signal_id) = connect_sender_fun(s);
         Self {
             object,
             signal_id: Cell::new(Some(signal_id)),
-            receiver: r,
+            receiver,
         }
     }
 }
@@ -82,30 +80,26 @@ macro_rules! ev_stream {
     // Typed macro
     ($this:expr, $event:ident, | $($x:ident),* | $cloning_body:expr) => {
         {
-            let object = $this.clone().downgrade();
-            let connect_fun = move |sender| {
-                let signal_id = $crate::paste::expr!($this.[<connect_ $event>](move |$($x,)*| {
-                    let args = $cloning_body;
-                    sender.unbounded_send(args).expect("sending value in ev_stream");
-                }));
-                (object, signal_id)
-            }
-            EvStream::new(connect_fun)
+            let (s, r) = $crate::mpsc::unbounded();
+            let object = $this.clone().upcast::<$crate::Object>().downgrade();
+            let signal_id = $crate::paste::expr!($this.[<connect_ $event>](move |$($x,)*| {
+                let args = $cloning_body;
+                s.unbounded_send(args).expect("sending value in ev_stream");
+            }));
+            $crate::EvStream::new(object, signal_id, r)
         }
     };
     // Untyped macro (connects to the event by name, using a string)
     ($this:expr, $event:expr, | $($x:ident),* | $cloning_body:expr) => {
         {
-            let object = $this.clone().downgrade();
-            let connect_fun = move |sender| {
-                let signal_id = $this.connect_local($event, false, move |$($x,)*| {
-                    let args = $cloning_body;
-                    sender.unbounded_send(args).expect("sending value in ev_stream");
-                    None
-                });
-                (object, signal_id)
-            }
-            EvStream::new(connect_fun)
+            let (s, r) = $crate::mpsc::unbounded();
+            let object = $this.clone().upcast::<Object>().downgrade();
+            let signal_id = $this.connect_local($event, false, move |$($x,)*| {
+                let args = $cloning_body;
+                s.unbounded_send(args).expect("sending value in ev_stream");
+                None
+            });
+            $crate::EvStream::new(object, signal_id, r)
         }
     };
     ($this:expr, $event:ident, | $($x:ident),* |) => {

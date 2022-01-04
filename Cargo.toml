@@ -10,3 +10,11 @@ futures-core = "0.3.19"
 futures-channel = "0.3.19"
 glib = "0"
 paste = "1.0.6"
+
+[dev-dependencies]
+gtk = {package = "gtk4", version = "0.3.1"}
+futures = "0.3.19"
+async-std = "1.10.0"
+
+[[example]]
+name = "button_count"
