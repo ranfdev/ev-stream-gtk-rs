@@ -33,7 +33,7 @@ impl<T> EvStream<T> {
 impl<T> Stream for EvStream<T> {
     type Item = T;
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut Pin::get_mut(self).receiver).poll_next(cx)
+        Pin::new(&mut self.get_mut().receiver).poll_next(cx)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -62,7 +62,7 @@ impl<T> std::ops::Drop for EvStream<T> {
 ///
 ///
 /// # Examples
-/// ```
+/// ```ignore
 /// // typed, uses `connect_clicked` method
 /// let clicks = ev_stream!(button, clicked, |btn|);
 /// // untyped, uses general `connect_local` method
